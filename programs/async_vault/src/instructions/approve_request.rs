@@ -267,11 +267,5 @@ pub fn handler<'info>(
     request.price = nav;
     request.request_state = RequestState::Claimable;
 
-    // Decrement Vault's pending Requests
-    vault.pending_async_requests = vault
-        .pending_async_requests
-        .checked_sub(1)
-        .ok_or(AsyncVaultError::ArithmeticError)?;
-
     Ok(())
 }

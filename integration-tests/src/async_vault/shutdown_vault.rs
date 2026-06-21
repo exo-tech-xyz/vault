@@ -21,7 +21,8 @@ use crate::{
         set_up_async_vault, set_vault_total_asset_balance,
     },
     async_vault::constants::{
-        REDEMPTIONS_PAUSED, UNAUTHORIZED_SIGNER, VAULT_ALREADY_CLOSING, VAULT_IS_CLOSING,
+        REDEMPTIONS_PAUSED, UNAUTHORIZED_SIGNER, VAULT_ALREADY_CLOSING,
+        VAULT_HAS_PENDING_ASYNC_REQUESTS, VAULT_IS_CLOSING,
     },
 };
 
@@ -313,6 +314,30 @@ fn shutdown_blocks_new_subscriptions_and_withdrawals_but_allows_redemption_exit(
         .instruction()
         .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
         .expect("redemption approval should remain available during shutdown");
+
+    let close_before_claim_err = CloseVaultBuilder::new()
+        .authority(authority.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .vault(vault)
+        .reserve(reserve)
+        .pending_vault(pending_vault)
+        .authority_asset_token_account(get_associated_token_address_with_program_id(
+            &authority.pubkey(),
+            &asset_mint.pubkey(),
+            &asset_token_program,
+        ))
+        .asset_token_program(asset_token_program)
+        .share_token_program(share_token_program)
+        .instruction()
+        .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
+        .unwrap_err();
+    assert_error_code(
+        &close_before_claim_err,
+        VAULT_HAS_PENDING_ASYNC_REQUESTS,
+        "VaultHasPendingAsyncRequests",
+    );
+    svm.expire_blockhash();
 
     ClaimBuilder::new()
         .user(user.pubkey())

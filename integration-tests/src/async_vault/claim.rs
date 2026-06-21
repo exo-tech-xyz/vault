@@ -3,10 +3,13 @@ use async_vault_client::{
     lite::SendTransaction, sdk::program_id, ApproveRequestBuilder, ClaimBuilder,
     CreateDepositRequestBuilder, CreateRedeemRequestBuilder,
     InitializeVaultBuilder as InitializeAsyncVaultBuilder, RequestArgs,
-    UpdateVaultBuilder as UpdateVaultAsyncBuilder, UpdateVaultNavBuilder,
+    UpdateVaultBuilder as UpdateVaultAsyncBuilder, UpdateVaultNavBuilder, Vault,
 };
 use litesvm::LiteSVM;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
+use solana_sdk::{
+    account::ReadableAccount, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    transaction::Transaction,
+};
 use test_case::test_case;
 
 use crate::{
@@ -185,6 +188,16 @@ fn test_claim_deposit_success(
         svm.get_account(&request_keypair.pubkey()).is_none(),
         "request account should be closed after claim"
     );
+    let vault_after = Vault::from_bytes(
+        svm.get_account(&vault_pubkey)
+            .expect("vault should exist")
+            .data(),
+    )
+    .unwrap();
+    assert_eq!(
+        vault_after.pending_async_requests, 0,
+        "claim should settle the outstanding request"
+    );
     assert_eq!(
         get_token_account_amount(&svm.get_account(&user_share_account).unwrap()),
         user_shares_before + expected_deposit_shares,
@@ -324,6 +337,16 @@ fn test_claim_redeem_success(
     assert!(
         svm.get_account(&request_keypair.pubkey()).is_none(),
         "request account should be closed after claim"
+    );
+    let vault_after = Vault::from_bytes(
+        svm.get_account(&vault_pubkey)
+            .expect("vault should exist")
+            .data(),
+    )
+    .unwrap();
+    assert_eq!(
+        vault_after.pending_async_requests, 0,
+        "claim should settle the outstanding request"
     );
     assert_eq!(
         get_token_account_amount(&svm.get_account(&user_asset_account).unwrap()),

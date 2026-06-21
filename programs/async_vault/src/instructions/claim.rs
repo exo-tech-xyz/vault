@@ -161,5 +161,12 @@ pub fn handler(ctx: Context<Claim>) -> Result<()> {
         }
     }
 
+    ctx.accounts.vault.pending_async_requests = ctx
+        .accounts
+        .vault
+        .pending_async_requests
+        .checked_sub(1)
+        .ok_or(AsyncVaultError::ArithmeticError)?;
+
     Ok(())
 }

@@ -26,7 +26,7 @@ pub struct Vault {
     pub nav: u128,
     /// nav version, incremented on each NAV update
     pub nav_version: u64,
-    /// count of pending async deposit/withdrawal requests
+    /// count of unfinished async deposit/withdrawal requests, including Claimable requests
     pub pending_async_requests: u16,
     /// virtual vault asset balance, accounts for tokens that may
     /// have been withdrawn by the vault authority

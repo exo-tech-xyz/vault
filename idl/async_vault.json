@@ -2696,7 +2696,7 @@
           {
             "name": "pending_async_requests",
             "docs": [
-              "count of pending async deposit/withdrawal requests"
+              "count of unfinished async deposit/withdrawal requests, including Claimable requests"
             ],
             "type": "u16"
           },

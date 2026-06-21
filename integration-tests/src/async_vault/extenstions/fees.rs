@@ -224,7 +224,10 @@ fn test_approve_deposit_with_fee(
             .data(),
     )
     .unwrap();
-    assert_eq!(vault_after.pending_async_requests, 0);
+    assert_eq!(
+        vault_after.pending_async_requests, 1,
+        "the request remains outstanding until the user claims shares"
+    );
     assert_eq!(
         vault_after.total_asset_balance, expected_net,
         "total_asset_balance should equal net deposit (after fee)"
@@ -344,7 +347,10 @@ fn test_approve_redeem_with_fee(
             .data(),
     )
     .unwrap();
-    assert_eq!(vault_after.pending_async_requests, 0);
+    assert_eq!(
+        vault_after.pending_async_requests, 1,
+        "the request remains outstanding until the user claims assets"
+    );
     assert_eq!(
         vault_after.total_asset_balance, 0,
         "total_asset_balance should be decremented by gross assets"
