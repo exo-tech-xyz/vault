@@ -75,6 +75,7 @@ pub mod lite {
             ),
             (CANCEL_REQUEST_DISCRIMINATOR, "cancel_request"),
             (CLAIM_DISCRIMINATOR, "claim"),
+            (CLOSE_VAULT_DISCRIMINATOR, "close_vault"),
             (
                 CREATE_DEPOSIT_REQUEST_DISCRIMINATOR,
                 "create_deposit_request",
@@ -117,6 +118,7 @@ pub mod lite {
             (INVITE_NEW_AUTHORITY_DISCRIMINATOR, "invite_new_authority"),
             (REJECT_REQUEST_DISCRIMINATOR, "reject_request"),
             (SET_OPERATOR_DISCRIMINATOR, "set_operator"),
+            (SHUTDOWN_VAULT_DISCRIMINATOR, "shutdown_vault"),
             (
                 SKIP_CANCELED_QUEUE_REQUEST_DISCRIMINATOR,
                 "skip_canceled_queue_request",

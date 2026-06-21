@@ -491,6 +491,78 @@
       "args": []
     },
     {
+      "name": "close_vault",
+      "docs": [
+        "Permanently closes an empty vault after shutdown, request settlement, and queue draining.",
+        "Returns the share mint authority and account rent to the vault authority."
+      ],
+      "discriminator": [
+        141,
+        103,
+        17,
+        126,
+        72,
+        75,
+        29,
+        29
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "asset_mint"
+        },
+        {
+          "name": "share_mint",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "share_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reserve",
+          "writable": true
+        },
+        {
+          "name": "pending_vault",
+          "writable": true
+        },
+        {
+          "name": "authority_asset_token_account",
+          "writable": true
+        },
+        {
+          "name": "asset_token_program"
+        },
+        {
+          "name": "share_token_program"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_deposit_request",
       "docs": [
         "Creates a deposit request with state pending (Pending vault authority acceptance)"
@@ -1353,6 +1425,55 @@
       "args": []
     },
     {
+      "name": "shutdown_vault",
+      "docs": [
+        "Starts the irreversible vault wind-down. It blocks new subscriptions and reserve withdrawals",
+        "while allowing redemptions and outstanding request settlement."
+      ],
+      "discriminator": [
+        36,
+        219,
+        106,
+        54,
+        165,
+        85,
+        81,
+        136
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "share_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "share_mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "skip_canceled_queue_request",
       "docs": [
         "Permissionless instruction that advances the queue past a canceled request, closes the",
@@ -1994,6 +2115,46 @@
       "code": 6040,
       "name": "InvalidShareMintExtensions",
       "msg": "Share mint has invalid extensions."
+    },
+    {
+      "code": 6041,
+      "name": "VaultIsClosing",
+      "msg": "Vault is shutting down."
+    },
+    {
+      "code": 6042,
+      "name": "VaultAlreadyClosing",
+      "msg": "Vault shutdown has already started."
+    },
+    {
+      "code": 6043,
+      "name": "VaultMustBeShutdownBeforeClosing",
+      "msg": "Vault shutdown must start before final closure."
+    },
+    {
+      "code": 6044,
+      "name": "VaultHasPendingAsyncRequests",
+      "msg": "Vault has pending async requests."
+    },
+    {
+      "code": 6045,
+      "name": "VaultHasOutstandingAssetBalance",
+      "msg": "Vault has a nonzero total asset balance."
+    },
+    {
+      "code": 6046,
+      "name": "ShareMintSupplyMustBeZeroBeforeClosing",
+      "msg": "Share mint supply must be zero before closing the vault."
+    },
+    {
+      "code": 6047,
+      "name": "SubscriptionQueueNotDrained",
+      "msg": "Subscription queue must be fully processed before closing the vault."
+    },
+    {
+      "code": 6048,
+      "name": "RedemptionQueueNotDrained",
+      "msg": "Redemption queue must be fully processed before closing the vault."
     }
   ],
   "types": [
@@ -2494,6 +2655,13 @@
             "name": "paused",
             "docs": [
               "paused"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "closing",
+            "docs": [
+              "irreversible wind-down state; blocks new subscriptions while allowing exits"
             ],
             "type": "bool"
           },

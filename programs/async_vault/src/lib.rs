@@ -36,6 +36,12 @@ pub mod async_vault {
         instructions::shutdown_vault::handler(ctx)
     }
 
+    /// Permanently closes an empty vault after shutdown, request settlement, and queue draining.
+    /// Returns the share mint authority and account rent to the vault authority.
+    pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
+        instructions::close_vault::handler(ctx)
+    }
+
     /// User claims their shares or assets from an approved Deposit or Redemption request.
     /// Request must be Claimable.
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
