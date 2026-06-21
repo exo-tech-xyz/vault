@@ -30,6 +30,12 @@ pub mod async_vault {
         instructions::initialize_vault::handler(ctx)
     }
 
+    /// Starts the irreversible vault wind-down. It blocks new subscriptions and reserve withdrawals
+    /// while allowing redemptions and outstanding request settlement.
+    pub fn shutdown_vault(ctx: Context<ShutdownVault>) -> Result<()> {
+        instructions::shutdown_vault::handler(ctx)
+    }
+
     /// User claims their shares or assets from an approved Deposit or Redemption request.
     /// Request must be Claimable.
     pub fn claim(ctx: Context<Claim>) -> Result<()> {

@@ -82,7 +82,7 @@ impl<'info> CreateDepositRequest<'info> {
 }
 
 pub fn handler(ctx: Context<CreateDepositRequest>, args: RequestArgs) -> Result<()> {
-    ctx.accounts.vault.assert_unpaused_and_initialized()?;
+    ctx.accounts.vault.assert_active()?;
 
     extensions::pausable_subscriptions::check_subscriptions_paused(
         &ctx.accounts.vault.to_account_info(),

@@ -16,6 +16,8 @@ pub struct Vault {
     pub fee_recipient: Pubkey,
     /// paused
     pub paused: bool,
+    /// irreversible wind-down state; blocks new subscriptions while allowing exits
+    pub closing: bool,
     /// once a vault is initialized, no extensions can be added
     pub initialized: bool,
     /// token account holding assets from deposits awaiting share issuance
@@ -40,6 +42,17 @@ impl Vault {
     pub fn assert_unpaused_and_initialized(&self) -> Result<()> {
         require!(self.initialized, AsyncVaultError::UninitializedVault);
         require!(!self.paused, AsyncVaultError::PausedVault);
+        Ok(())
+    }
+
+    pub fn assert_active(&self) -> Result<()> {
+        self.assert_unpaused_and_initialized()?;
+        require!(!self.closing, AsyncVaultError::VaultIsClosing);
+        Ok(())
+    }
+
+    pub fn assert_not_closing(&self) -> Result<()> {
+        require!(!self.closing, AsyncVaultError::VaultIsClosing);
         Ok(())
     }
 

@@ -60,7 +60,7 @@ impl<'info> WithdrawAssets<'info> {
 }
 
 pub fn handler(ctx: Context<WithdrawAssets>, amount: u64) -> Result<()> {
-    ctx.accounts.vault.assert_unpaused_and_initialized()?;
+    ctx.accounts.vault.assert_active()?;
     ctx.accounts.transfer_assets_to_authority(amount)?;
     Ok(())
 }

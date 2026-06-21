@@ -170,6 +170,10 @@ pub fn handler<'info>(
     let seeds: &[&[&[u8]]] = &[&[VAULT_CONFIG_SEED, share_mint_key.as_ref(), &[vault_bump]]];
 
     let is_deposit = matches!(ctx.accounts.request.request_type, RequestType::Deposit);
+    require!(
+        !is_deposit || !ctx.accounts.vault.closing,
+        AsyncVaultError::VaultIsClosing
+    );
     let original_amount = ctx.accounts.request.amount;
 
     // Extension: SubscriptionQueue — enforce FIFO ordering for deposit requests.

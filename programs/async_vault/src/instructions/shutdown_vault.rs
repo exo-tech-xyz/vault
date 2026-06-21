@@ -3,17 +3,12 @@ use anchor_spl::token_interface::Mint;
 
 use crate::{
     error::AsyncVaultError,
+    extensions::pausable_redemptions::check_redemptions_paused,
     state::{Vault, VAULT_CONFIG_SEED},
 };
 
-#[derive(AnchorDeserialize, AnchorSerialize)]
-pub struct UpdateVaultArgs {
-    pub paused: Option<bool>,
-    pub fee_recipient: Option<Pubkey>,
-}
-
 #[derive(Accounts)]
-pub struct UpdateVault<'info> {
+pub struct ShutdownVault<'info> {
     pub authority: Signer<'info>,
 
     pub share_mint: InterfaceAccount<'info, Mint>,
@@ -27,17 +22,14 @@ pub struct UpdateVault<'info> {
     pub vault: Account<'info, Vault>,
 }
 
-pub fn handler(ctx: Context<UpdateVault>, args: UpdateVaultArgs) -> Result<()> {
+/// Starts an irreversible wind-down. New subscriptions and reserve withdrawals are blocked,
+/// while redemptions and outstanding request settlement remain available until final closure.
+pub fn handler(ctx: Context<ShutdownVault>) -> Result<()> {
     let vault = &mut ctx.accounts.vault;
-    vault.assert_not_closing()?;
+    require!(!vault.paused, AsyncVaultError::PausedVault);
+    require!(!vault.closing, AsyncVaultError::VaultAlreadyClosing);
+    check_redemptions_paused(&vault.to_account_info())?;
 
-    if let Some(paused) = args.paused {
-        vault.paused = paused;
-    }
-
-    if let Some(fee_recipient) = args.fee_recipient {
-        vault.fee_recipient = fee_recipient;
-    }
-
+    vault.closing = true;
     Ok(())
 }
