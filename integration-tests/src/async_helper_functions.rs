@@ -222,6 +222,43 @@ pub fn create_mint_with_confidential_mint_burn(svm: &mut LiteSVM, mint: &Keypair
     .unwrap();
 }
 
+pub fn create_mint_with_mint_close_authority(svm: &mut LiteSVM, signer: &Keypair, mint: &Keypair) {
+    let space =
+        ExtensionType::try_calculate_account_len::<Mint>(&[ExtensionType::MintCloseAuthority])
+            .unwrap();
+    let rent = svm.minimum_balance_for_rent_exemption(space);
+    let create_account_ix = create_account(
+        &signer.pubkey(),
+        &mint.pubkey(),
+        rent,
+        space as u64,
+        &spl_token_2022::id(),
+    );
+    let init_close_authority_ix = spl_token_2022::instruction::initialize_mint_close_authority(
+        &spl_token_2022::id(),
+        &mint.pubkey(),
+        Some(&signer.pubkey()),
+    )
+    .unwrap();
+    let init_mint_ix = spl_token_2022::instruction::initialize_mint(
+        &spl_token_2022::id(),
+        &mint.pubkey(),
+        &signer.pubkey(),
+        None,
+        9,
+    )
+    .unwrap();
+
+    let tx = Transaction::new_signed_with_payer(
+        &[create_account_ix, init_close_authority_ix, init_mint_ix],
+        Some(&signer.pubkey()),
+        &[mint, signer],
+        svm.latest_blockhash(),
+    );
+    svm.send_transaction(tx)
+        .expect("create_mint_with_mint_close_authority transaction failed");
+}
+
 pub fn approve_request_args(
     svm: &LiteSVM,
     request: &Pubkey,
@@ -347,6 +384,7 @@ pub fn set_up_async_vault(
         .expect("vault creation should succeed");
 
     let user_token_account = create_ata(svm, &user, &asset_mint.pubkey(), &asset_token_program);
+    create_ata(svm, &authority, &asset_mint.pubkey(), &asset_token_program);
     let fee_recipient_ata = create_ata(
         svm,
         &fee_recipient,
@@ -389,15 +427,29 @@ pub fn set_share_balance(
     amount: u64,
 ) {
     let mut acct = svm.get_account(user_share_account).unwrap();
-    let mut token_state = spl_token::state::Account::unpack(&acct.data).unwrap();
-    token_state.amount = amount;
-    spl_token::state::Account::pack(token_state, &mut acct.data).unwrap();
+    if acct.owner == token_2022::ID {
+        let mut token_state =
+            StateWithExtensionsMut::<TokenAccount2022>::unpack(&mut acct.data).unwrap();
+        token_state.base.amount = amount;
+        token_state.pack_base();
+    } else {
+        let mut token_state = spl_token::state::Account::unpack(&acct.data).unwrap();
+        token_state.amount = amount;
+        spl_token::state::Account::pack(token_state, &mut acct.data).unwrap();
+    }
     svm.set_account(*user_share_account, acct).unwrap();
 
     let mut mint_acct = svm.get_account(share_mint).unwrap();
-    let mut mint_state = spl_token::state::Mint::unpack(&mint_acct.data).unwrap();
-    mint_state.supply = amount;
-    spl_token::state::Mint::pack(mint_state, &mut mint_acct.data).unwrap();
+    if mint_acct.owner == token_2022::ID {
+        let mut mint_state =
+            StateWithExtensionsMut::<Token2022Mint>::unpack(&mut mint_acct.data).unwrap();
+        mint_state.base.supply = amount;
+        mint_state.pack_base();
+    } else {
+        let mut mint_state = spl_token::state::Mint::unpack(&mint_acct.data).unwrap();
+        mint_state.supply = amount;
+        spl_token::state::Mint::pack(mint_state, &mut mint_acct.data).unwrap();
+    }
     svm.set_account(*share_mint, mint_acct).unwrap();
 }
 
