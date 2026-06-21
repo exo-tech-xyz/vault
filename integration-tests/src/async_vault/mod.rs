@@ -1,6 +1,7 @@
 mod approve_request;
 mod cancel_request;
 mod claim;
+mod close_vault;
 mod constants;
 mod create_deposit_request;
 mod create_redeem_request;
@@ -10,6 +11,7 @@ mod fee_extensions;
 mod initialize_vault;
 mod reject_request;
 mod set_operator;
+mod shutdown_vault;
 mod update_async_vault;
 mod update_authority;
 mod update_vault_nav;

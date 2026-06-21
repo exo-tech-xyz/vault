@@ -42,6 +42,19 @@ The design follows ERC-7540 and the lessons of Token-2022, keeping the core mini
 
 The primary implementation, supporting asynchronous deposit and redemption flows where requests are queued and settled by the vault authority. Targeted at RWA issuers, teams running off-chain strategies, and any context requiring regulatory compliance.
 
+### Closing an async vault
+
+Closing is terminal and happens in two stages. First, the authority calls `shutdown_vault`. This
+irreversibly blocks subscriptions and reserve withdrawals while allowing redemptions, claims,
+cancellations, rejections, and FIFO tombstone skipping. Once all requests are settled, the share
+supply and both custody accounts are empty, and `total_asset_balance` is zero, the authority can
+call `close_vault`. The instruction returns share-mint authority and account rent to the vault
+authority, sweeps any unaccounted asset-token residue from the reserve and pending-vault to the
+authority's asset account, then closes the reserve, pending-vault, and vault-config accounts.
+
+Token-2022 share mints with `MintCloseAuthority` are not supported because a close authority
+could remove the zero-supply share mint before `close_vault` finishes.
+
 ## Documentation
 
 - [Design Decisions](DESIGN_DECISIONS.md) — requested features and how each is approached
