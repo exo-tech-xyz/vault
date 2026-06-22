@@ -112,7 +112,6 @@ pub fn handler(ctx: Context<CreateVault>, args: AsyncVaultArgs) -> Result<()> {
         authority: args.authority,
         fee_recipient: args.fee_recipient,
         paused: false,
-        closing: false,
         initialized: false,
         pending_vault: ctx.accounts.pending_vault.key(),
         nav: 0,

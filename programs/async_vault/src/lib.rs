@@ -30,13 +30,7 @@ pub mod async_vault {
         instructions::initialize_vault::handler(ctx)
     }
 
-    /// Starts the irreversible vault wind-down. It blocks new subscriptions and reserve withdrawals
-    /// while allowing redemptions and outstanding request settlement.
-    pub fn shutdown_vault(ctx: Context<ShutdownVault>) -> Result<()> {
-        instructions::shutdown_vault::handler(ctx)
-    }
-
-    /// Permanently closes an empty vault after shutdown, request settlement, and queue draining.
+    /// Permanently closes a vault after subscriptions are paused and all user liabilities settle.
     /// Returns the share mint authority and account rent to the vault authority.
     pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
         instructions::close_vault::handler(ctx)

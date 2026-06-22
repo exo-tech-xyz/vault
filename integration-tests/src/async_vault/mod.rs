@@ -11,7 +11,6 @@ mod fee_extensions;
 mod initialize_vault;
 mod reject_request;
 mod set_operator;
-mod shutdown_vault;
 mod update_async_vault;
 mod update_authority;
 mod update_vault_nav;

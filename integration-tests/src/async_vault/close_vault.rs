@@ -7,11 +7,12 @@ use anchor_spl::{
     },
 };
 use async_vault_client::{
-    lite::SendTransaction, sdk::program_id, CancelQueuedDepositRequestBuilder,
-    CancelQueuedRedemptionRequestBuilder, CloseVaultBuilder, CreateDepositRequestBuilder,
-    CreateRedeemRequestBuilder, InitializeRedemptionQueueBuilder,
-    InitializeSubscriptionQueueBuilder, InitializeVaultBuilder as InitializeAsyncVaultBuilder,
-    RequestArgs, ShutdownVaultBuilder,
+    lite::SendTransaction, sdk::program_id, ApproveRequestBuilder,
+    CancelQueuedDepositRequestBuilder, CancelQueuedRedemptionRequestBuilder, ClaimBuilder,
+    CloseVaultBuilder, CreateDepositRequestBuilder, CreateRedeemRequestBuilder,
+    InitializeRedemptionQueueBuilder, InitializeSubscriptionQueueBuilder,
+    InitializeVaultBuilder as InitializeAsyncVaultBuilder, RequestArgs, UpdateVaultNavBuilder,
+    Vault,
 };
 use litesvm::LiteSVM;
 use solana_sdk::{
@@ -22,13 +23,13 @@ use test_case::test_case;
 
 use crate::{
     async_helper_functions::{
-        assert_error_code, create_ata, get_token_account_amount, helper_mint_to, set_share_balance,
-        set_up_async_vault, set_vault_pending_async_requests, set_vault_total_asset_balance,
+        approve_request_args, assert_error_code, create_ata, get_token_account_amount,
+        helper_mint_to, set_share_balance, set_up_async_vault, set_vault_pending_async_requests,
+        set_vault_total_asset_balance,
     },
     async_vault::constants::{
         REDEMPTION_QUEUE_NOT_DRAINED, SHARE_MINT_SUPPLY_MUST_BE_ZERO_BEFORE_CLOSING,
-        SUBSCRIPTION_QUEUE_NOT_DRAINED, UNAUTHORIZED_SIGNER, VAULT_HAS_OUTSTANDING_ASSET_BALANCE,
-        VAULT_HAS_PENDING_ASYNC_REQUESTS, VAULT_MUST_BE_SHUTDOWN_BEFORE_CLOSING,
+        SUBSCRIPTION_QUEUE_NOT_DRAINED, UNAUTHORIZED_SIGNER, VAULT_HAS_PENDING_ASYNC_REQUESTS,
     },
 };
 
@@ -128,21 +129,6 @@ fn initialize_vault(
         .expect("initialize vault should succeed");
 }
 
-fn shutdown_vault(
-    svm: &mut LiteSVM,
-    authority: &Keypair,
-    share_mint: solana_sdk::pubkey::Pubkey,
-    vault: solana_sdk::pubkey::Pubkey,
-) {
-    ShutdownVaultBuilder::new()
-        .authority(authority.pubkey())
-        .share_mint(share_mint)
-        .vault(vault)
-        .instruction()
-        .send_transaction(svm, &authority.pubkey(), &[authority])
-        .expect("shutdown vault should succeed");
-}
-
 fn close_vault(
     svm: &mut LiteSVM,
     authority: &Keypair,
@@ -221,7 +207,7 @@ fn assert_mint_authority(
 #[test_case(token_2022::ID, token_2022::ID ; "Token-2022 asset and share mint")]
 #[test_case(token::ID, token_2022::ID ; "SPL Token asset and Token-2022 share mint")]
 #[test_case(token_2022::ID, token::ID ; "Token-2022 asset and SPL Token share mint")]
-fn close_vault_closes_all_vault_accounts_and_returns_share_mint_authority(
+fn close_vault_without_pausable_subscriptions_closes_all_vault_accounts_and_returns_share_mint_authority(
     asset_token_program: solana_sdk::pubkey::Pubkey,
     share_token_program: solana_sdk::pubkey::Pubkey,
 ) {
@@ -240,7 +226,6 @@ fn close_vault_closes_all_vault_accounts_and_returns_share_mint_authority(
     ) = setup_vault_with_token_programs(asset_token_program, share_token_program);
 
     initialize_vault(&mut svm, &authority, share_mint.pubkey(), vault);
-    shutdown_vault(&mut svm, &authority, share_mint.pubkey(), vault);
 
     close_vault_with_token_programs(
         &mut svm,
@@ -267,14 +252,10 @@ fn close_vault_closes_all_vault_accounts_and_returns_share_mint_authority(
     );
 }
 
-#[test_case(false, 0, 0, 0, VAULT_MUST_BE_SHUTDOWN_BEFORE_CLOSING ; "vault must be shut down first")]
-#[test_case(true, 1, 0, 0, VAULT_HAS_PENDING_ASYNC_REQUESTS ; "pending request blocks close")]
-#[test_case(true, 0, 1, 0, VAULT_HAS_OUTSTANDING_ASSET_BALANCE ; "outstanding asset balance blocks close")]
-#[test_case(true, 0, 0, 1, SHARE_MINT_SUPPLY_MUST_BE_ZERO_BEFORE_CLOSING ; "share supply blocks close")]
+#[test_case(1, 0, VAULT_HAS_PENDING_ASYNC_REQUESTS ; "pending request blocks close")]
+#[test_case(0, 1, SHARE_MINT_SUPPLY_MUST_BE_ZERO_BEFORE_CLOSING ; "share supply blocks close")]
 fn close_vault_rejects_unsatisfied_core_invariants(
-    shutdown: bool,
     pending_requests: u16,
-    total_asset_balance: u64,
     share_supply: u64,
     expected_error: u32,
 ) {
@@ -293,11 +274,7 @@ fn close_vault_rejects_unsatisfied_core_invariants(
     ) = setup_vault();
 
     initialize_vault(&mut svm, &authority, share_mint.pubkey(), vault);
-    if shutdown {
-        shutdown_vault(&mut svm, &authority, share_mint.pubkey(), vault);
-    }
     set_vault_pending_async_requests(&mut svm, vault, pending_requests);
-    set_vault_total_asset_balance(&mut svm, vault, total_asset_balance);
     if share_supply > 0 {
         set_share_balance(
             &mut svm,
@@ -323,6 +300,301 @@ fn close_vault_rejects_unsatisfied_core_invariants(
     assert!(!svm.get_account(&pending_vault).unwrap().data().is_empty());
 }
 
+#[test]
+fn close_vault_rejects_claimable_redemption_until_user_claims() {
+    let (
+        mut svm,
+        authority,
+        mint_authority,
+        asset_mint,
+        share_mint,
+        user,
+        reserve,
+        pending_vault,
+        vault,
+        user_asset_account,
+        user_share_account,
+    ) = setup_vault();
+
+    initialize_vault(&mut svm, &authority, share_mint.pubkey(), vault);
+    UpdateVaultNavBuilder::new()
+        .authority(authority.pubkey())
+        .vault(vault)
+        .updated_nav(1_000_000_000)
+        .instruction()
+        .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
+        .expect("set NAV should succeed");
+
+    set_share_balance(&mut svm, &user_share_account, &share_mint.pubkey(), 1);
+    helper_mint_to(
+        &mut svm,
+        &asset_mint.pubkey(),
+        &reserve,
+        &mint_authority,
+        1,
+        &token::ID,
+    );
+    set_vault_total_asset_balance(&mut svm, vault, 1);
+
+    let request = Keypair::new();
+    CreateRedeemRequestBuilder::new()
+        .user(user.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .request(request.pubkey())
+        .vault(vault)
+        .user_share_account(user_share_account)
+        .share_token_program(token::ID)
+        .args(RequestArgs {
+            amount: 1,
+            operator: None,
+        })
+        .instruction()
+        .send_transaction(&mut svm, &user.pubkey(), &[&user, &request])
+        .expect("create redemption request should succeed");
+
+    let (owner, request_type, amount, created_at, nav_update_version) =
+        approve_request_args(&svm, &request.pubkey());
+    ApproveRequestBuilder::new()
+        .authority(authority.pubkey())
+        .vault(vault)
+        .request(request.pubkey())
+        .owner(owner)
+        .request_type(request_type)
+        .amount(amount)
+        .created_at(created_at)
+        .nav_update_version(nav_update_version)
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .vault_token_account(reserve)
+        .pending_vault(pending_vault)
+        .asset_token_program(token::ID)
+        .instruction()
+        .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
+        .expect("approve redemption request should succeed");
+
+    let close_before_claim_err = close_vault(
+        &mut svm,
+        &authority,
+        asset_mint.pubkey(),
+        share_mint.pubkey(),
+        vault,
+        reserve,
+        pending_vault,
+    )
+    .unwrap_err();
+    assert_error_code(
+        &close_before_claim_err,
+        VAULT_HAS_PENDING_ASYNC_REQUESTS,
+        "VaultHasPendingAsyncRequests",
+    );
+    svm.expire_blockhash();
+
+    ClaimBuilder::new()
+        .user(user.pubkey())
+        .owner(user.pubkey())
+        .vault(vault)
+        .request(request.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .pending_vault(Some(pending_vault))
+        .user_share_account(None)
+        .user_asset_account(Some(user_asset_account))
+        .asset_token_program(token::ID)
+        .share_token_program(None)
+        .instruction()
+        .send_transaction(&mut svm, &user.pubkey(), &[&user])
+        .expect("claim redemption should succeed");
+
+    close_vault(
+        &mut svm,
+        &authority,
+        asset_mint.pubkey(),
+        share_mint.pubkey(),
+        vault,
+        reserve,
+        pending_vault,
+    )
+    .expect("close should succeed after the user claims");
+}
+
+#[test]
+fn close_vault_sweeps_rounding_dust_after_a_full_deposit_and_redeem_cycle() {
+    let (
+        mut svm,
+        authority,
+        _mint_authority,
+        asset_mint,
+        share_mint,
+        user,
+        reserve,
+        pending_vault,
+        vault,
+        user_asset_account,
+        user_share_account,
+    ) = setup_vault();
+
+    initialize_vault(&mut svm, &authority, share_mint.pubkey(), vault);
+    UpdateVaultNavBuilder::new()
+        .authority(authority.pubkey())
+        .vault(vault)
+        .updated_nav(3_000_000_000)
+        .instruction()
+        .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
+        .expect("set NAV should succeed");
+
+    let deposit_request = Keypair::new();
+    CreateDepositRequestBuilder::new()
+        .user(user.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .request(deposit_request.pubkey())
+        .vault(vault)
+        .user_token_account(user_asset_account)
+        .pending_vault(pending_vault)
+        .asset_token_program(token::ID)
+        .args(RequestArgs {
+            amount: 1_000_000,
+            operator: None,
+        })
+        .instruction()
+        .send_transaction(&mut svm, &user.pubkey(), &[&user, &deposit_request])
+        .expect("create deposit request should succeed");
+
+    let (owner, request_type, amount, created_at, nav_update_version) =
+        approve_request_args(&svm, &deposit_request.pubkey());
+    ApproveRequestBuilder::new()
+        .authority(authority.pubkey())
+        .vault(vault)
+        .request(deposit_request.pubkey())
+        .owner(owner)
+        .request_type(request_type)
+        .amount(amount)
+        .created_at(created_at)
+        .nav_update_version(nav_update_version)
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .vault_token_account(reserve)
+        .pending_vault(pending_vault)
+        .asset_token_program(token::ID)
+        .instruction()
+        .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
+        .expect("approve deposit request should succeed");
+
+    ClaimBuilder::new()
+        .user(user.pubkey())
+        .owner(user.pubkey())
+        .vault(vault)
+        .request(deposit_request.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .pending_vault(None)
+        .user_share_account(Some(user_share_account))
+        .user_asset_account(None)
+        .asset_token_program(token::ID)
+        .share_token_program(Some(token::ID))
+        .instruction()
+        .send_transaction(&mut svm, &user.pubkey(), &[&user])
+        .expect("claim deposit request should succeed");
+
+    let redeem_request = Keypair::new();
+    CreateRedeemRequestBuilder::new()
+        .user(user.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .request(redeem_request.pubkey())
+        .vault(vault)
+        .user_share_account(user_share_account)
+        .share_token_program(token::ID)
+        .args(RequestArgs {
+            amount: 333_333,
+            operator: None,
+        })
+        .instruction()
+        .send_transaction(&mut svm, &user.pubkey(), &[&user, &redeem_request])
+        .expect("create redeem request should succeed");
+
+    let (owner, request_type, amount, created_at, nav_update_version) =
+        approve_request_args(&svm, &redeem_request.pubkey());
+    ApproveRequestBuilder::new()
+        .authority(authority.pubkey())
+        .vault(vault)
+        .request(redeem_request.pubkey())
+        .owner(owner)
+        .request_type(request_type)
+        .amount(amount)
+        .created_at(created_at)
+        .nav_update_version(nav_update_version)
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .vault_token_account(reserve)
+        .pending_vault(pending_vault)
+        .asset_token_program(token::ID)
+        .instruction()
+        .send_transaction(&mut svm, &authority.pubkey(), &[&authority])
+        .expect("approve redeem request should succeed");
+
+    ClaimBuilder::new()
+        .user(user.pubkey())
+        .owner(user.pubkey())
+        .vault(vault)
+        .request(redeem_request.pubkey())
+        .asset_mint(asset_mint.pubkey())
+        .share_mint(share_mint.pubkey())
+        .pending_vault(Some(pending_vault))
+        .user_share_account(None)
+        .user_asset_account(Some(user_asset_account))
+        .asset_token_program(token::ID)
+        .share_token_program(None)
+        .instruction()
+        .send_transaction(&mut svm, &user.pubkey(), &[&user])
+        .expect("claim redeem request should succeed");
+
+    let vault_state =
+        Vault::from_bytes(svm.get_account(&vault).expect("vault should exist").data())
+            .expect("vault should deserialize");
+    assert_eq!(vault_state.pending_async_requests, 0);
+    assert_eq!(vault_state.total_asset_balance, 1);
+    assert_eq!(
+        get_token_account_amount(&svm.get_account(&reserve).expect("reserve should exist")),
+        1
+    );
+    assert_eq!(
+        get_token_account_amount(
+            &svm.get_account(&pending_vault)
+                .expect("pending vault should exist"),
+        ),
+        0
+    );
+
+    let authority_asset_token_account = get_associated_token_address_with_program_id(
+        &authority.pubkey(),
+        &asset_mint.pubkey(),
+        &token::ID,
+    );
+    let authority_balance_before = get_token_account_amount(
+        &svm.get_account(&authority_asset_token_account)
+            .expect("authority asset account should exist"),
+    );
+
+    close_vault(
+        &mut svm,
+        &authority,
+        asset_mint.pubkey(),
+        share_mint.pubkey(),
+        vault,
+        reserve,
+        pending_vault,
+    )
+    .expect("close should sweep rounding dust after all user liabilities are settled");
+
+    let authority_balance_after = get_token_account_amount(
+        &svm.get_account(&authority_asset_token_account)
+            .expect("authority asset account should remain"),
+    );
+    assert_eq!(authority_balance_after, authority_balance_before + 1);
+}
+
 #[test_case(token::ID, token::ID ; "SPL Token asset mint")]
 #[test_case(token_2022::ID, token_2022::ID ; "Token-2022 asset mint")]
 fn close_vault_sweeps_unaccounted_asset_dust_to_authority(
@@ -344,7 +616,6 @@ fn close_vault_sweeps_unaccounted_asset_dust_to_authority(
     ) = setup_vault_with_token_programs(asset_token_program, share_token_program);
 
     initialize_vault(&mut svm, &authority, share_mint.pubkey(), vault);
-    shutdown_vault(&mut svm, &authority, share_mint.pubkey(), vault);
 
     helper_mint_to(
         &mut svm,
@@ -412,7 +683,6 @@ fn close_vault_rejects_an_unauthorized_authority() {
         _user_share_account,
     ) = setup_vault();
     initialize_vault(&mut svm, &authority, share_mint.pubkey(), vault);
-    shutdown_vault(&mut svm, &authority, share_mint.pubkey(), vault);
 
     let unauthorized = Keypair::new();
     svm.airdrop(&unauthorized.pubkey(), 1_000_000_000).unwrap();
@@ -529,7 +799,6 @@ fn close_vault_rejects_unprocessed_queue_tombstones(subscription_queue: bool, ex
         set_share_balance(&mut svm, &user_share_account, &share_mint.pubkey(), 0);
     }
 
-    shutdown_vault(&mut svm, &authority, share_mint.pubkey(), vault);
     let err = close_vault(
         &mut svm,
         &authority,

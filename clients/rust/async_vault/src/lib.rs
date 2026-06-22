@@ -118,7 +118,6 @@ pub mod lite {
             (INVITE_NEW_AUTHORITY_DISCRIMINATOR, "invite_new_authority"),
             (REJECT_REQUEST_DISCRIMINATOR, "reject_request"),
             (SET_OPERATOR_DISCRIMINATOR, "set_operator"),
-            (SHUTDOWN_VAULT_DISCRIMINATOR, "shutdown_vault"),
             (
                 SKIP_CANCELED_QUEUE_REQUEST_DISCRIMINATOR,
                 "skip_canceled_queue_request",

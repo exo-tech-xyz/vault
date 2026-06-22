@@ -73,7 +73,6 @@ pub struct BasicExtensionAccounts<'info> {
     #[account(
         mut,
         constraint = authority.key() == vault.authority @ AsyncVaultError::UnauthorizedSigner,
-        constraint = !vault.closing @ AsyncVaultError::VaultIsClosing,
     )]
     pub vault: Account<'info, Vault>,
 }
@@ -86,7 +85,6 @@ pub fn init_vault_extension<E: VaultExtension>(
     vault: &Vault,
     value: &E,
 ) -> Result<()> {
-    vault.assert_not_closing()?;
     vault.assert_uninitialized()?;
     let mut data = vault_info
         .data

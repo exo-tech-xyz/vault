@@ -18,7 +18,6 @@ pub struct InitializeVault<'info> {
 }
 
 pub fn handler(ctx: Context<InitializeVault>) -> Result<()> {
-    ctx.accounts.vault.assert_not_closing()?;
     ctx.accounts.vault.assert_uninitialized()?;
 
     ctx.accounts.vault.initialized = true;

@@ -144,16 +144,8 @@ pub fn handler(ctx: Context<CloseVault>) -> Result<()> {
     let accounts = &ctx.accounts;
 
     require!(
-        accounts.vault.closing,
-        AsyncVaultError::VaultMustBeShutdownBeforeClosing
-    );
-    require!(
         accounts.vault.pending_async_requests == 0,
         AsyncVaultError::VaultHasPendingAsyncRequests
-    );
-    require!(
-        accounts.vault.total_asset_balance == 0,
-        AsyncVaultError::VaultHasOutstandingAssetBalance
     );
     require!(
         accounts.share_mint.supply == 0,

@@ -6,8 +6,7 @@ pub mod pausable_subscriptions;
 pub mod redemption_queue;
 pub mod subscription_queue;
 
-/// Byte offset where vault extension TLV data begins (8-byte discriminator + 265 fixed fields).
-pub const VAULT_TLV_START: usize = 273;
+pub const VAULT_TLV_START: usize = 272;
 /// Byte offset where request extension TLV data begins (8-byte discriminator + 171 fixed fields).
 pub const REQUEST_TLV_START: usize = 179;
 

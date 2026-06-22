@@ -84,16 +84,8 @@ pub enum AsyncVaultError {
     InsufficientDepositAmount,
     #[msg("Share mint has invalid extensions.")]
     InvalidShareMintExtensions,
-    #[msg("Vault is shutting down.")]
-    VaultIsClosing,
-    #[msg("Vault shutdown has already started.")]
-    VaultAlreadyClosing,
-    #[msg("Vault shutdown must start before final closure.")]
-    VaultMustBeShutdownBeforeClosing,
     #[msg("Vault has pending async requests.")]
     VaultHasPendingAsyncRequests,
-    #[msg("Vault has a nonzero total asset balance.")]
-    VaultHasOutstandingAssetBalance,
     #[msg("Share mint supply must be zero before closing the vault.")]
     ShareMintSupplyMustBeZeroBeforeClosing,
     #[msg("Subscription queue must be fully processed before closing the vault.")]

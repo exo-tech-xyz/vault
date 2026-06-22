@@ -29,7 +29,6 @@ pub struct UpdateVault<'info> {
 
 pub fn handler(ctx: Context<UpdateVault>, args: UpdateVaultArgs) -> Result<()> {
     let vault = &mut ctx.accounts.vault;
-    vault.assert_not_closing()?;
 
     if let Some(paused) = args.paused {
         vault.paused = paused;

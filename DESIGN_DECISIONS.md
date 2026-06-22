@@ -47,6 +47,14 @@ The most common shared needs, built as toggleable extensions.
 
 - **FIFO fairness** — pure FIFO is unfair when limits exist and a whale consumes the limit first. A team needing fairness would generalize the queue (granular control), or combine authority partial fills with a max-redemption + withdraw cooldown.
 
+## Vault lifecycle
+
+- 🟢 **Terminal vault closure** — core `CloseVault` is available to every vault once all requests
+  are settled, share supply is zero, and queues are drained. Residual asset tokens are swept to
+  the authority before vault accounts are closed.
+- 🟢 **Subscription pause** — `PausableSubscriptions` is optional but recommended when winding
+  down a vault, since it stops new deposit requests while existing obligations are settled.
+
 ## Limits & caps (often regulatory)
 
 - 🟢 **Per-request minimums** — `MinSubscription` / `MinRedemption`.
