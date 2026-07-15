@@ -75,6 +75,7 @@ pub mod lite {
             ),
             (CANCEL_REQUEST_DISCRIMINATOR, "cancel_request"),
             (CLAIM_DISCRIMINATOR, "claim"),
+            (CLOSE_VAULT_DISCRIMINATOR, "close_vault"),
             (
                 CREATE_DEPOSIT_REQUEST_DISCRIMINATOR,
                 "create_deposit_request",

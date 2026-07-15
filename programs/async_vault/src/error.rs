@@ -84,6 +84,14 @@ pub enum AsyncVaultError {
     InsufficientDepositAmount,
     #[msg("Share mint has invalid extensions.")]
     InvalidShareMintExtensions,
+    #[msg("Vault has pending async requests.")]
+    VaultHasPendingAsyncRequests,
+    #[msg("Share mint supply must be zero before closing the vault.")]
+    ShareMintSupplyMustBeZeroBeforeClosing,
+    #[msg("Subscription queue must be fully processed before closing the vault.")]
+    SubscriptionQueueNotDrained,
+    #[msg("Redemption queue must be fully processed before closing the vault.")]
+    RedemptionQueueNotDrained,
 }
 
 impl From<vault_common::VaultMathError> for AsyncVaultError {

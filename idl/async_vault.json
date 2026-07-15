@@ -491,6 +491,78 @@
       "args": []
     },
     {
+      "name": "close_vault",
+      "docs": [
+        "Permanently closes a vault after subscriptions are paused and all user liabilities settle.",
+        "Returns the share mint authority and account rent to the vault authority."
+      ],
+      "discriminator": [
+        141,
+        103,
+        17,
+        126,
+        72,
+        75,
+        29,
+        29
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "asset_mint"
+        },
+        {
+          "name": "share_mint",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "share_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reserve",
+          "writable": true
+        },
+        {
+          "name": "pending_vault",
+          "writable": true
+        },
+        {
+          "name": "authority_asset_token_account",
+          "writable": true
+        },
+        {
+          "name": "asset_token_program"
+        },
+        {
+          "name": "share_token_program"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_deposit_request",
       "docs": [
         "Creates a deposit request with state pending (Pending vault authority acceptance)"
@@ -1994,6 +2066,26 @@
       "code": 6040,
       "name": "InvalidShareMintExtensions",
       "msg": "Share mint has invalid extensions."
+    },
+    {
+      "code": 6041,
+      "name": "VaultHasPendingAsyncRequests",
+      "msg": "Vault has pending async requests."
+    },
+    {
+      "code": 6042,
+      "name": "ShareMintSupplyMustBeZeroBeforeClosing",
+      "msg": "Share mint supply must be zero before closing the vault."
+    },
+    {
+      "code": 6043,
+      "name": "SubscriptionQueueNotDrained",
+      "msg": "Subscription queue must be fully processed before closing the vault."
+    },
+    {
+      "code": 6044,
+      "name": "RedemptionQueueNotDrained",
+      "msg": "Redemption queue must be fully processed before closing the vault."
     }
   ],
   "types": [
@@ -2528,7 +2620,7 @@
           {
             "name": "pending_async_requests",
             "docs": [
-              "count of pending async deposit/withdrawal requests"
+              "count of unfinished async deposit/withdrawal requests, including Claimable requests"
             ],
             "type": "u16"
           },

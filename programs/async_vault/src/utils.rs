@@ -37,8 +37,7 @@ pub fn validate_asset_mint_extensions_from_acct_info(mint_acct: &AccountInfo) ->
 }
 
 /// Validates the share mint's extensions against the vault's public mint/burn share lifecycle.
-/// Rejects `ConfidentialMintBurn`, under which public `mint_to`/`burn` fail and would brick
-/// claims and redemptions.
+/// Rejects extensions that would make the share lifecycle or terminal vault closure unsafe.
 pub fn validate_share_mint_extensions_from_acct_info(mint_acct: &AccountInfo) -> Result<()> {
     if mint_acct.owner != &spl_token_2022::ID {
         return Ok(());
@@ -50,6 +49,15 @@ pub fn validate_share_mint_extensions_from_acct_info(mint_acct: &AccountInfo) ->
         .get_extension::<spl_token_2022::extension::confidential_mint_burn::ConfidentialMintBurn>()
         .is_ok()
     {
+        return Err(AsyncVaultError::InvalidShareMintExtensions.into());
+    }
+
+    if mint
+        .get_extension::<spl_token_2022::extension::mint_close_authority::MintCloseAuthority>()
+        .is_ok()
+    {
+        // A different close authority could delete the zero-supply share mint before
+        // close_vault finishes, leaving the vault cleanup accounts stranded.
         return Err(AsyncVaultError::InvalidShareMintExtensions.into());
     }
 

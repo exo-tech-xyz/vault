@@ -164,7 +164,10 @@ fn test_approve_deposit_request_success(
             .data(),
     )
     .unwrap();
-    assert_eq!(vault_after.pending_async_requests, 0);
+    assert_eq!(
+        vault_after.pending_async_requests, 1,
+        "the request remains outstanding until the user claims shares"
+    );
     assert_eq!(
         vault_after.total_asset_balance, deposit_amount,
         "total_asset_balance should be incremented by deposit amount"
@@ -281,7 +284,10 @@ fn test_approve_redeem_request_success(nav: u128, redeem_amount: u64, expected_r
             .data(),
     )
     .unwrap();
-    assert_eq!(vault_after.pending_async_requests, 0);
+    assert_eq!(
+        vault_after.pending_async_requests, 1,
+        "the request remains outstanding until the user claims assets"
+    );
     assert_eq!(
         vault_after.total_asset_balance, 0,
         "total_asset_balance should be decremented by redeemed assets"
